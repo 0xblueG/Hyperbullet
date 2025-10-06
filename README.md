@@ -34,3 +34,112 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## API: /api/get-prices-supabase
+
+Fetches candles and indicators from Hyperliquid and writes into Supabase.
+
+- Candles strategy: last-only per symbol (one row per asset), upsert on `symbol`.
+- Indicators: computed on the full fetched window (default 50 candles at 4h) and upsert on `symbol`.
+
+### Request
+
+- Method: GET
+- URL: `http://localhost:3000/api/get-prices-supabase` (or port chosen by Next.js, e.g. 3001)
+- Query params (optional, not yet configurable via URL):
+	- interval: fixed to `4h` in code
+	- n: fixed to `50` in code
+
+### Response (example)
+
+```json
+{
+	"ok": true,
+	"symbols": ["0G", "2Z", ...],
+	"candlesPrepared": 9,
+	"indicatorsPrepared": 9,
+	"candlesWritten": 9,
+	"indicatorsWritten": 9,
+	"debug": {
+		"candlesTable": "candles",
+		"indicatorsTable": "indicators",
+		"conflictKeys": { "candles": "symbol", "indicators": "symbol" },
+		"timeType": { "candles": "timestamp", "indicators": "timestamp" },
+		"strategy": "last-only-per-symbol"
+	},
+	"errors": { "candles": [], "indicators": [] },
+	"fallbacks": { "candles": [], "indicators": [] }
+}
+```
+
+Notes:
+- `candlesPrepared`/`indicatorsPrepared` comptent les lignes prêtes à l’écriture.
+- `candlesWritten`/`indicatorsWritten` sont le nombre réel inséré/upserté.
+- Si un symbole n’a pas d’historique disponible sur la fenêtre demandée, il est ignoré.
+
+### Environment variables
+
+Add these to `.env.local`:
+
+```
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_SCHEMA=public
+SUPABASE_CANDLES_TABLE=candles
+SUPABASE_INDICATORS_TABLE=indicators
+SUPABASE_CANDLES_TIME_TYPE=timestamp   # or ms/s depending on your column types
+# Optional, if indicators time type differs
+# SUPABASE_INDICATORS_TIME_TYPE=timestamp
+```
+
+Important: `.env.local` must not be committed. The service role key is sensitive.
+
+### Supabase schema
+
+This route assumes one latest row per symbol in `candles` and upserts on `symbol`:
+
+```
+-- Example (timestamps variant)
+CREATE TABLE IF NOT EXISTS public.candles (
+	symbol text PRIMARY KEY,
+	interval text NOT NULL,
+	start timestamptz NOT NULL,
+	end timestamptz NOT NULL,
+	open double precision NOT NULL,
+	high double precision NOT NULL,
+	low double precision NOT NULL,
+	close double precision NOT NULL,
+	volume double precision NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS public.indicators (
+	symbol text PRIMARY KEY,
+	lastTs timestamptz NOT NULL,
+	ema50 double precision,
+	ema200 double precision,
+	rsi14 double precision,
+	macd double precision,
+	macdSignal double precision,
+	score double precision,
+	label text
+);
+```
+
+If you later want full historical candles per symbol, add a composite unique key and adjust the route to upsert on it:
+
+```
+ALTER TABLE public.candles DROP CONSTRAINT IF EXISTS candles_pkey;
+ALTER TABLE public.candles ADD CONSTRAINT candles_pkey PRIMARY KEY (symbol, start, interval);
+-- or keep another PK and add UNIQUE(symbol, start, interval)
+
+ALTER TABLE public.indicators DROP CONSTRAINT IF EXISTS indicators_pkey;
+ALTER TABLE public.indicators ADD CONSTRAINT indicators_symbol_lastTs_uniq UNIQUE (symbol, lastTs);
+```
+
+### Quick test
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:3000/api/get-prices-supabase -Method GET | ConvertTo-Json -Depth 7
+```
+
+If Next.js picked another port (e.g., 3001), replace it in the URL above.
