@@ -143,3 +143,47 @@ Invoke-RestMethod -Uri http://localhost:3000/api/get-prices-supabase -Method GET
 ```
 
 If Next.js picked another port (e.g., 3001), replace it in the URL above.
+
+## Supabase Edge Function: ingest-hyperliquid
+
+Run the ingestion inside Supabase (Deno Edge) without running locally.
+
+### Files
+
+- `supabase/functions/ingest-hyperliquid/index.ts` (this repo)
+
+### Deploy (PowerShell)
+
+```powershell
+# Install CLI if needed (optional)
+# iwr https://supabase.com/cli/install/windows | iex
+
+supabase login
+supabase link --project-ref <your-project-ref>
+
+# Set secrets (never commit these)
+supabase secrets set SUPABASE_URL="https://<ref>.supabase.co"
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
+supabase secrets set SUPABASE_SCHEMA="public"
+supabase secrets set SUPABASE_CANDLES_TABLE="candles"
+supabase secrets set SUPABASE_INDICATORS_TABLE="indicators"
+supabase secrets set SUPABASE_CANDLES_TIME_TYPE="timestamp"
+
+# Optional
+# supabase secrets set SUPABASE_INDICATORS_TIME_TYPE="timestamp"
+
+# Deploy. Use --no-verify-jwt to make it callable without a JWT (or configure auth as needed)
+supabase functions deploy ingest-hyperliquid --no-verify-jwt
+
+# Invoke on-demand
+supabase functions invoke ingest-hyperliquid --no-verify-jwt
+
+# Or call via HTTPS endpoint shown by the CLI (GET supports ?interval=4h&n=50&limit=100)
+```
+
+### Notes
+
+- Candles are upserted on `symbol` only (last-only strategy).
+- Indicators are computed on the fetched window (default `n=50`, `interval=4h`).
+- You can pass query params to the function: `interval`, `n`, `limit`.
+- To store full history later, add a composite unique constraint and adjust onConflict keys.
