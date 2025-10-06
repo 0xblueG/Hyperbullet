@@ -130,13 +130,14 @@ Deno.serve(async (req: Request) => {
     const n = Number(url.searchParams.get('n') || '50')
     const limit = Number(url.searchParams.get('limit') || '100')
 
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    const SUPABASE_SCHEMA = Deno.env.get('SUPABASE_SCHEMA') || 'public'
-    const CANDLES_TABLE = (Deno.env.get('SUPABASE_CANDLES_TABLE') || 'candles').replace(/^public\./i,'')
-    const INDICATORS_TABLE = (Deno.env.get('SUPABASE_INDICATORS_TABLE') || 'indicators').replace(/^public\./i,'')
-    const CANDLES_TIME_TYPE = Deno.env.get('SUPABASE_CANDLES_TIME_TYPE') || 'timestamp'
-    const INDICATORS_TIME_TYPE = Deno.env.get('SUPABASE_INDICATORS_TIME_TYPE') || CANDLES_TIME_TYPE
+  // Supabase secrets cannot start with SUPABASE_, so we use SB_* names
+  const SUPABASE_URL = Deno.env.get('SB_URL')
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SB_SERVICE_ROLE_KEY')
+  const SUPABASE_SCHEMA = Deno.env.get('SB_SCHEMA') || 'public'
+  const CANDLES_TABLE = (Deno.env.get('SB_CANDLES_TABLE') || 'candles').replace(/^public\./i,'')
+  const INDICATORS_TABLE = (Deno.env.get('SB_INDICATORS_TABLE') || 'indicators').replace(/^public\./i,'')
+  const CANDLES_TIME_TYPE = Deno.env.get('SB_CANDLES_TIME_TYPE') || 'timestamp'
+  const INDICATORS_TIME_TYPE = Deno.env.get('SB_INDICATORS_TIME_TYPE') || CANDLES_TIME_TYPE
 
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       return new Response(JSON.stringify({ ok:false, error: 'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
